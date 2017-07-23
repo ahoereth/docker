@@ -1,0 +1,98 @@
+FROM ubuntu:16.04
+
+MAINTAINER Alexander Höreth <alexander@psiori.com>
+
+# Dependencies & Python 3
+RUN apt-get update
+RUN apt-get install -y -qq --no-install-recommends \
+        build-essential \
+        apt-transport-https \
+        curl \
+        wget \
+        git \
+        locate \
+        libcurl3-dev \
+        libfreetype6-dev \
+        libpng12-dev \
+        libzmq3-dev \
+        pkg-config \
+        python3-dev \
+        rsync \
+        software-properties-common \
+        unzip \
+        zip \
+        zlib1g-dev \
+        openjdk-8-jdk \
+        openjdk-8-jre-headless
+RUN ln -s /usr/bin/python3 /usr/bin/python
+RUN curl -fSsL -O https://bootstrap.pypa.io/get-pip.py \
+ && python3 get-pip.py \
+ && rm get-pip.py
+RUN pip3 -q --no-cache-dir install \
+        ipykernel \
+        jupyter \
+        matplotlib \
+        numpy \
+        scipy \
+        sklearn \
+        pandas \
+ && python3 -m ipykernel.kernelspec
+
+# Set up jupyter.
+# https://github.com/ipython/ipython/issues/7062
+COPY assets/jupyter_notebook_config.py /root/.jupyter/
+COPY assets/run_jupyter.sh /
+
+# Set up Bazel.
+ARG BAZEL_VERSION=0.5.2
+# https://github.com/bazelbuild/bazel/issues/134
+RUN echo "startup --batch" >> /etc/bazel.bazelrc
+# https://github.com/bazelbuild/bazel/issues/418
+RUN echo "build --spawn_strategy=standalone --genrule_strategy=standalone" >> /etc/bazel.bazelrc
+RUN mkdir /bazel \
+ && cd /bazel \
+ && curl -H "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.133 Safari/537.36" -fSsL -O https://github.com/bazelbuild/bazel/releases/download/$BAZEL_VERSION/bazel-$BAZEL_VERSION-installer-linux-x86_64.sh \
+ && curl -H "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.133 Safari/537.36" -fSsL -o /bazel/LICENSE.txt https://raw.githubusercontent.com/bazelbuild/bazel/master/LICENSE \
+ && chmod +x bazel-*.sh \
+ && ./bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh \
+ && cd / \
+ && rm -f /bazel/bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh
+
+# Tensorflow
+ARG TF_VERSION=1.2
+RUN git clone -b r${TF_VERSION} --single-branch https://github.com/tensorflow/tensorflow.git /tensorflow
+WORKDIR /tensorflow
+
+# Build configuration defaults
+ENV CI_BUILD_PYTHON python3
+ENV PYTHON_BIN_PATH /usr/bin/python3
+ENV TF_NEED_MKL 1
+ENV CC_OPT_FLAGS -DEIGEN_USE_VML
+ENV TF_NEED_JEMALLOC 1
+ENV TF_NEED_GCP 0
+ENV TF_NEED_HDFS 0
+ENV TF_ENABLE_XLA 0
+ENV TF_NEED_VERBS 0
+ENV TF_NEED_OPENCL 0
+ENV USE_DEFAULT_PYTHON_LIB_PATH 1
+
+ENV TF_NEED_CUDA 0
+ENV TF_CUDA_CLANG 0
+ENV CLANG_CUDA_COMPILER_PATH $(which clang || true)
+ENV TF_CUDA_VERSION 8.0
+ENV CUDA_PATH /usr/local/cuda
+ENV CUDA_TOOLKIT_PATH /usr/local/cuda
+ENV TF_CUDNN_VERSION 6.0
+# ENV LD_LIBRARY_PATH /usr/local/cuda/extras/CUPTI/lib64:$LD_LIBRARY_PATH
+
+# https://developer.nvidia.com/cuda-gpus
+ENV TF_CUDA_COMPUTE_CAPABILITIES 3.7
+
+ENV GCC_HOST_COMPILER_PATH $(which gcc || true)
+
+# TensorBoard
+EXPOSE 6006
+# IPython
+EXPOSE 8888
+
+CMD ["/bin/bash"]
