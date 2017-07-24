@@ -5,8 +5,9 @@ RUN wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCT
  && apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS-2019.PUB \
  && wget https://apt.repos.intel.com/setup/intelproducts.list -O /etc/apt/sources.list.d/intelproducts.list \
  && apt-get update \
- && apt-get install -y --no-install-recommends intelpython3
+ && apt-get install -y --no-install-recommends intelpython3 intel-mkl-64bit-2017.3-056
 
+# Replace python 3 with intelpython
 # RUN rm /usr/bin/python3 \
 #  && ln -s /opt/intel/intelpython3/bin/python3 /usr/bin/python3 \
 #  && rm /usr/bin/python \
@@ -14,16 +15,33 @@ RUN wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCT
 # ENV CI_BUILD_PYTHON /opt/intel/intelpython3/bin/python3
 # ENV PYTHON_BIN_PATH /opt/intel/intelpython3/bin/python3
 
-# Intel optimized docker
-# https://software.intel.com/en-us/articles/tensorflow-optimizations-on-modern-intel-architecture
+# Configure build.
+ENV CI_BUILD_PYTHON python3
+ENV PYTHON_BIN_PATH /usr/bin/python3
+ENV USE_DEFAULT_PYTHON_LIB_PATH 1
+
+ENV TF_NEED_CUDA 0
+ENV TF_NEED_GCP 0
+ENV TF_NEED_HDFS 0
+ENV TF_ENABLE_XLA 0
+ENV TF_NEED_VERBS 0
+ENV TF_NEED_OPENCL 0
+ENV TF_NEED_JEMALLOC 1
+
+ENV TF_NEED_MKL 1
+ENV TF_DOWNLOAD_MKL 1
+ENV CC_OPT_FLAGS -DEIGEN_USE_VML
+
+# Build tensorflow
 RUN cd /tensorflow \
- && tensorflow/tools/ci_build/builds/configured CPU \
-    bazel build \
-        --config=mkl --copt="-DEIGEN_USE_VML" -c opt \
-        tensorflow/tools/pip_package:build_pip_package && \
-    bazel-bin/tensorflow/tools/pip_package/build_pip_package.sh /tmp/pip3 && \
-    pip3 --no-cache-dir install --upgrade /tmp/pip3/tensorflow-*.whl && \
-    rm -rf /tmp/pip3 && \
-    rm -rf /root/.cache
+ && yes "" | ./configure \
+ && ./tensorflow/tools/ci_build/builds/print_build_info.sh \
+ && bazel build \
+        -c opt --config=mkl --copt="-DEIGEN_USE_VML" \
+        tensorflow/tools/pip_package:build_pip_package \
+ && bazel-bin/tensorflow/tools/pip_package/build_pip_package.sh /tmp/pip3 \
+ &&  pip3 --no-cache-dir install --upgrade /tmp/pip3/tensorflow-*.whl \
+ &&  rm -rf /tmp/pip3 \
+ &&  rm -rf /root/.cache
 
 WORKDIR /root

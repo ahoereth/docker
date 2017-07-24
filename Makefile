@@ -1,7 +1,6 @@
 image/%:
 	docker build -t ahoereth/tf-$* -f Dockerfile.tf.$* .
 
-intel: image/base
-	make image/intel
+intel: image/base image/intel
 
 all: intel

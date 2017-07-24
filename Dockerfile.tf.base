@@ -60,35 +60,10 @@ RUN mkdir /bazel \
 
 # Tensorflow
 ARG TF_VERSION=1.2
-RUN git clone -b r${TF_VERSION} --single-branch https://github.com/tensorflow/tensorflow.git /tensorflow
+RUN git clone https://github.com/tensorflow/tensorflow.git /tensorflow \
+ && cd /tensorflow \
+ && git checkout r${TF_VERSION}
 WORKDIR /tensorflow
-
-# Build configuration defaults
-ENV CI_BUILD_PYTHON python3
-ENV PYTHON_BIN_PATH /usr/bin/python3
-ENV TF_NEED_MKL 1
-ENV CC_OPT_FLAGS -DEIGEN_USE_VML
-ENV TF_NEED_JEMALLOC 1
-ENV TF_NEED_GCP 0
-ENV TF_NEED_HDFS 0
-ENV TF_ENABLE_XLA 0
-ENV TF_NEED_VERBS 0
-ENV TF_NEED_OPENCL 0
-ENV USE_DEFAULT_PYTHON_LIB_PATH 1
-
-ENV TF_NEED_CUDA 0
-ENV TF_CUDA_CLANG 0
-ENV CLANG_CUDA_COMPILER_PATH $(which clang || true)
-ENV TF_CUDA_VERSION 8.0
-ENV CUDA_PATH /usr/local/cuda
-ENV CUDA_TOOLKIT_PATH /usr/local/cuda
-ENV TF_CUDNN_VERSION 6.0
-# ENV LD_LIBRARY_PATH /usr/local/cuda/extras/CUPTI/lib64:$LD_LIBRARY_PATH
-
-# https://developer.nvidia.com/cuda-gpus
-ENV TF_CUDA_COMPUTE_CAPABILITIES 3.7
-
-ENV GCC_HOST_COMPILER_PATH $(which gcc || true)
 
 # TensorBoard
 EXPOSE 6006
