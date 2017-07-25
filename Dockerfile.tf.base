@@ -30,14 +30,15 @@ RUN ln -s /usr/bin/python3 /usr/bin/python
 RUN curl -fSsL -O https://bootstrap.pypa.io/get-pip.py \
  && python3 get-pip.py \
  && rm get-pip.py
-RUN pip3 install -q -U --no-cache-dir  \
+ARG PACKAGES=pandas
+RUN pip3 install -q -U --no-cache-dir \
         ipykernel \
         jupyter \
         matplotlib \
         numpy \
         scipy \
         sklearn \
-        pandas \
+        ${PACKAGES} \
  && python3 -m ipykernel.kernelspec
 
 # Set up jupyter.
