@@ -3,4 +3,5 @@ image/%:
 
 intel: image/base image/intel
 
-all: intel
+
+all: image/intel

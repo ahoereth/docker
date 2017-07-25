@@ -1,27 +1,91 @@
-FROM ahoereth/tf-base
+FROM ubuntu:16.04
 
 MAINTAINER Alexander Höreth <alexander@psiori.com>
 
-# Intel optimized python 3
-RUN wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS-2019.PUB \
- && apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS-2019.PUB \
- && wget https://apt.repos.intel.com/setup/intelproducts.list -O /etc/apt/sources.list.d/intelproducts.list \
- && apt-get update \
- && apt-get install -y --no-install-recommends intelpython3 \
+
+####################################################
+### Intelpython
+RUN apt-get update -qqq --fix-missing \
+ && apt-get install -y -qqq --no-install-recommends \
+        apt-transport-https \
+        wget \
+        bzip2 \
+        ca-certificates \
+        libglib2.0-0 \
+        libxext6 \
+        libsm6 \
+        libxrender1 \
+        curl \
+        wget \
+        git \
+        g++ \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
-# Replace python 3 with intelpython
-# RUN rm /usr/bin/python3 \
-#  && ln -s /opt/intel/intelpython3/bin/python3 /usr/bin/python3 \
-#  && rm /usr/bin/python \
-#  && ln -s /opt/intel/intelpython3/bin/python3 /usr/bin/python
-# ENV CI_BUILD_PYTHON /opt/intel/intelpython3/bin/python3
-# ENV PYTHON_BIN_PATH /opt/intel/intelpython3/bin/python3
+RUN echo 'export PATH=/opt/conda/bin:$PATH' > /etc/profile.d/conda.sh \
+ && wget --quiet https://repo.continuum.io/miniconda/Miniconda3-4.3.14-Linux-x86_64.sh -O ~/miniconda.sh \
+ && /bin/bash ~/miniconda.sh -b -p /opt/conda \
+ && rm ~/miniconda.sh
 
-# Configure build.
-ENV CI_BUILD_PYTHON python3
-ENV PYTHON_BIN_PATH /usr/bin/python3
+ENV PATH /opt/conda/bin:$PATH
+ENV ACCEPT_INTEL_PYTHON_EULA=yes
+
+RUN conda update -y -q conda \
+ && conda config --add channels intel \
+ && conda install -y -q intelpython3_full python=3
+
+# Set up jupyter.
+# https://github.com/ipython/ipython/issues/7062
+COPY assets/jupyter_notebook_config.py /root/.jupyter/
+COPY assets/run_jupyter.sh /
+EXPOSE 8888
+
+
+RUN apt-get update -qq --fix-missing \
+ && apt-get install -y -qq --no-install-recommends \
+        build-essential \
+        locate \
+        libcurl3-dev \
+        libfreetype6-dev \
+        libpng12-dev \
+        libzmq3-dev \
+        pkg-config \
+        python3-dev \
+        rsync \
+        software-properties-common \
+        unzip \
+        zip \
+        zlib1g-dev \
+        openjdk-8-jdk \
+        openjdk-8-jre-headless \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
+
+
+####################################################
+### Bazel
+ARG BAZEL_VERSION=0.5.2
+# https://github.com/bazelbuild/bazel/issues/134
+RUN echo "startup --batch" >> /etc/bazel.bazelrc
+# https://github.com/bazelbuild/bazel/issues/418
+RUN echo "build --spawn_strategy=standalone --genrule_strategy=standalone" >> /etc/bazel.bazelrc
+RUN mkdir /bazel \
+ && cd /bazel \
+ && curl -H "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.133 Safari/537.36" -fSsL -O https://github.com/bazelbuild/bazel/releases/download/$BAZEL_VERSION/bazel-$BAZEL_VERSION-installer-linux-x86_64.sh \
+ && curl -H "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.133 Safari/537.36" -fSsL -o /bazel/LICENSE.txt https://raw.githubusercontent.com/bazelbuild/bazel/master/LICENSE \
+ && chmod +x bazel-*.sh \
+ && ./bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh \
+ && cd / \
+ && rm -f /bazel/bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh
+
+
+####################################################
+### Tensorflow
+ARG TF_VERSION=master
+RUN git clone --branch ${TF_VERSION} --single-branch https://github.com/tensorflow/tensorflow.git /tensorflow
+
+ENV CI_BUILD_PYTHON /opt/conda/bin/python3
+ENV PYTHON_BIN_PATH /opt/conda/bin/python3
 ENV USE_DEFAULT_PYTHON_LIB_PATH 1
 
 ENV TF_NEED_CUDA 0
@@ -36,7 +100,6 @@ ENV TF_NEED_MKL 1
 ENV TF_DOWNLOAD_MKL 1
 ENV CC_OPT_FLAGS -DEIGEN_USE_VML
 
-# Build tensorflow
 RUN cd /tensorflow \
  && yes "" | ./configure \
  && ./tensorflow/tools/ci_build/builds/print_build_info.sh \
@@ -44,7 +107,9 @@ RUN cd /tensorflow \
         --config=mkl --copt=-DEIGEN_USE_VML \
         --copt=-msse4.1 --copt=-mavx --copt=-mavx2 --copt=-mfma \
         tensorflow/tools/pip_package:build_pip_package \
- && bazel-bin/tensorflow/tools/pip_package/build_pip_package /tmp/pip3 \
- && pip3 install -q -U --no-cache-dir /tmp/pip3/tensorflow-*.whl
+ && bazel-bin/tensorflow/tools/pip_package/build_pip_package /tmp/pip \
+ && pip install -q -U --no-cache-dir /tmp/pip/tensorflow-*.whl \
+ && rm -rf /tmp/pip
 
+EXPOSE 6006
 WORKDIR /root
