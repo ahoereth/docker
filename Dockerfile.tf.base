@@ -3,8 +3,8 @@ FROM ubuntu:16.04
 MAINTAINER Alexander Höreth <alexander@psiori.com>
 
 # Dependencies & Python 3
-RUN apt-get update
-RUN apt-get install -y -qq --no-install-recommends \
+RUN apt-get update -qq \
+ && apt-get install -y -qq --no-install-recommends \
         build-essential \
         apt-transport-https \
         curl \
@@ -23,12 +23,14 @@ RUN apt-get install -y -qq --no-install-recommends \
         zip \
         zlib1g-dev \
         openjdk-8-jdk \
-        openjdk-8-jre-headless
+        openjdk-8-jre-headless \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
 RUN ln -s /usr/bin/python3 /usr/bin/python
 RUN curl -fSsL -O https://bootstrap.pypa.io/get-pip.py \
  && python3 get-pip.py \
  && rm get-pip.py
-RUN pip3 -q --no-cache-dir install \
+RUN pip3 install -q -U --no-cache-dir  \
         ipykernel \
         jupyter \
         matplotlib \
@@ -59,10 +61,8 @@ RUN mkdir /bazel \
  && rm -f /bazel/bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh
 
 # Tensorflow
-ARG TF_VERSION=1.2
-RUN git clone https://github.com/tensorflow/tensorflow.git /tensorflow \
- && cd /tensorflow \
- && git checkout r${TF_VERSION}
+ARG TF_VERSION=master
+RUN git clone --branch ${TF_VERSION} --single-branch https://github.com/tensorflow/tensorflow.git /tensorflow
 WORKDIR /tensorflow
 
 # TensorBoard
