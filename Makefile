@@ -1,7 +1,11 @@
-image/%:
-	docker build -t ahoereth/tf-$* -f Dockerfile.tf.$* .
+USER ?= ahoereth
 
-intel: image/base image/intel
+.SECONDEXPANSION:
+image/%: Dockerfile.$$(subst -,.,%)
+	docker build -t ${USER}/$* -f Dockerfile.$(subst -,.,$*) .
 
+intel-tensorflow: intel-python image/intel-tensorflow
 
-all: image/intel
+%: image/% ;
+
+all: intel-python intel-tensorflow
