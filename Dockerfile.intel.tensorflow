@@ -63,9 +63,8 @@ ENV CC_OPT_FLAGS -DEIGEN_USE_VML -msse4.1 -mavx -mavx2 -mfma
 RUN cd /tensorflow \
  && yes "" | ./configure \
  && ./tensorflow/tools/ci_build/builds/print_build_info.sh \
- && bazel build -c opt \
-        --config=mkl --copt=-DEIGEN_USE_VML \
-        --copt=-msse4.1 --copt=-mavx --copt=-mavx2 --copt=-mfma \
+ && copt_args=`echo ${CC_OPT_FLAGS} | sed -e s/-/--copt=-/g` \
+ && bazel build -c opt ${copt_args} \
         tensorflow/tools/pip_package:build_pip_package \
  && bazel-bin/tensorflow/tools/pip_package/build_pip_package /tmp/pip \
  && pip install -q -U --no-cache-dir /tmp/pip/tensorflow-*.whl \
