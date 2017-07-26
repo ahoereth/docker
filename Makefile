@@ -6,7 +6,7 @@ IMAGES = intel-python intel-tensorflow latest
 intel-tensorflow: intel-python
 
 latest: intel-tensorflow
-	docker tag ${REPOSITORY}:intel-tensorflow ${REPOSITORY}:latest
+	docker tag ${REPOSITORY}:$< ${REPOSITORY}:$@
 
 .SECONDEXPANSION:
 %: Dockerfile.$$(subst -,.,%)
