@@ -1,11 +1,13 @@
 USER ?= ahoereth
 
+.default: intel-python intel-tensorflow
+
+intel-tensorflow: intel-python
+
+%: ${USER}/% ;
+
 .SECONDEXPANSION:
-image/%: Dockerfile.$$(subst -,.,%)
+${USER}/%: Dockerfile.$$(subst -,.,%)
 	docker build -t ${USER}/$* -f Dockerfile.$(subst -,.,$*) .
 
-intel-tensorflow: intel-python image/intel-tensorflow
 
-%: image/% ;
-
-all: intel-python intel-tensorflow

@@ -29,7 +29,8 @@ RUN echo 'export PATH=/opt/conda/bin:$PATH' > /etc/profile.d/conda.sh \
 ENV PATH /opt/conda/bin:$PATH
 
 
-# Intelpython, includes stuff like jupyter, numpy etc
+### Intelpython
+# Already includes stuff like jupyter, numpy etc.
 ENV ACCEPT_INTEL_PYTHON_EULA=yes
 RUN conda update -y -q conda \
  && conda config --add channels intel \
