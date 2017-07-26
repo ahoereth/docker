@@ -8,7 +8,6 @@ intel-tensorflow: intel-python
 %: Dockerfile.$$(subst -,.,%)
 	docker build . \
 		-t ${REPOSITORY}:$* \
-		-f Dockerfile.$(subst -,.,$*) \
-		--build-arg REPOSITORY=${REPOSITORY}
+		-f Dockerfile.$(subst -,.,$*)
 
 

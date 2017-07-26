@@ -1,5 +1,4 @@
-ARG REPOSITORY=ahoereth/tensorflow
-FROM ${REPOSITORY}:intel-python
+FROM ahoereth/tensorflow:intel-python
 MAINTAINER Alexander Höreth <alexander@psiori.com>
 
 
