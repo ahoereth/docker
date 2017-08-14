@@ -77,7 +77,10 @@ RUN git clone https://github.com/tensorflow/tensorflow.git && \
 WORKDIR /tensorflow
 
 # Configure the build for our CUDA configuration.
+RUN ln -s /usr/bin/python3 /usr/bin/python
 ENV CI_BUILD_PYTHON python3
+ENV PYTHON_BIN_PATH /usr/bin/python3
+ENV PYTHON_LIB_PATH /usr/local/lib/python3.5/dist-packages
 ENV LD_LIBRARY_PATH /usr/local/cuda/extras/CUPTI/lib64:$LD_LIBRARY_PATH
 ENV TF_NEED_CUDA 1
 ENV TF_CUDA_COMPUTE_CAPABILITIES=3.0,3.5,5.2,6.0,6.1
@@ -85,13 +88,13 @@ ENV CC_OPT_FLAGS -DEIGEN_USE_VML -msse4.1 -mavx -mavx2 -mfma
 
 # Build and store wheel (because we want to extract it).
 RUN copt_args=`echo ${CC_OPT_FLAGS} | sed -e s/-/--copt=-/g` \
-    tensorflow/tools/ci_build/builds/configured GPU \
+ && tensorflow/tools/ci_build/builds/configured GPU \
     bazel build -c opt ${copt_args} --config=cuda --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" \
         tensorflow/tools/pip_package:build_pip_package && \
     bazel-bin/tensorflow/tools/pip_package/build_pip_package /tmp/pip
 
 # Install wheel.
-RUN pip --no-cache-dir install --upgrade /tmp/pip/tensorflow-*.whl && \
+RUN pip3 --no-cache-dir install --upgrade /tmp/pip/tensorflow-*.whl && \
     rm -rf /root/.cache
 # Clean up pip wheel and Bazel cache when done.
 
