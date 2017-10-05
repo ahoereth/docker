@@ -1,5 +1,5 @@
 REPOSITORY ?= ahoereth/tensorflow
-IMAGES = intel-python intel-tensorflow tensorflow-gpu latest
+IMAGES = intel-python intel-tensorflow intel-tensorflow-gpu latest
 
 .default: ${IMAGES}
 
