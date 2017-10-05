@@ -4,7 +4,8 @@ MAINTAINER Alexander Höreth <alexander@psiori.com>
 
 ### Dependencies
 RUN apt-get update -qq --fix-missing \
- && apt-get install -y -qq --no-install-recommends \
+ && DEBIAN_FRONTEND=noninteractive \
+    apt-get install -y -qq --no-install-recommends \
         build-essential \
         locate \
         libcurl3-dev \
@@ -16,11 +17,13 @@ RUN apt-get update -qq --fix-missing \
         libsm6 \
         libxrender1 \
         pkg-config \
-        python3-dev \
         rsync \
         software-properties-common \
         unzip \
         zip \
+        curl \
+        git \
+        g++ \
         bzip2 \
         wget \
         ca-certificates \
@@ -47,7 +50,7 @@ RUN conda update -y -q conda \
  && conda install -y -q intelpython3_full python=3
 
 
-### Jupyter Configuration
+## Jupyter Configuration
 # https://github.com/ipython/ipython/issues/7062
 COPY assets/jupyter_notebook_config.py /root/.jupyter/
 COPY assets/run_jupyter.sh /
@@ -55,32 +58,31 @@ EXPOSE 8888
 
 
 ### Bazel
-ARG BAZEL_VERSION=0.5.2
-# https://github.com/bazelbuild/bazel/issues/134
 RUN echo "startup --batch" >> /etc/bazel.bazelrc
-# https://github.com/bazelbuild/bazel/issues/418
-RUN echo "build --spawn_strategy=standalone --genrule_strategy=standalone" >> /etc/bazel.bazelrc
-RUN mkdir /bazel \
- && cd /bazel \
- && curl -H "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.133 Safari/537.36" -fSsL -O https://github.com/bazelbuild/bazel/releases/download/$BAZEL_VERSION/bazel-$BAZEL_VERSION-installer-linux-x86_64.sh \
- && curl -H "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.133 Safari/537.36" -fSsL -o /bazel/LICENSE.txt https://raw.githubusercontent.com/bazelbuild/bazel/master/LICENSE \
- && chmod +x bazel-*.sh \
- && ./bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh \
- && cd / \
- && rm -f /bazel/bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh
+# RUN echo "build --spawn_strategy=standalone --genrule_strategy=standalone" >> /etc/bazel.bazelrc
+RUN echo "deb [arch=amd64] http://storage.googleapis.com/bazel-apt stable jdk1.8" | tee /etc/apt/sources.list.d/bazel.list \
+ && curl https://bazel.build/bazel-release.pub.gpg | apt-key add - \
+ && apt-get update -qq \
+ && apt-get install -y -qq --no-install-recommends bazel \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
 
 
 ### Tensorflow
 ARG TF_VERSION=master
-RUN git clone --branch ${TF_VERSION} --single-branch https://github.com/tensorflow/tensorflow.git /tensorflow
+RUN git clone https://github.com/tensorflow/tensorflow.git /tensorflow \
+ && git -C /tensorflow checkout ${TF_VERSION}
 
-ENV CI_BUILD_PYTHON python3
+ENV CI_BUILD_PYTHON python
 ENV PYTHON_BIN_PATH /opt/conda/bin/python3
-ENV PYTHON_LIB_PATH /opt/conda/lib/python3.5/site-packages/
-ENV LD_LIBRARY_PATH /usr/local/cuda/extras/CUPTI/lib64:$LD_LIBRARY_PATH
+ENV PYTHON_LIB_PATH /opt/conda/lib/python3.6/site-packages/
+ENV LD_LIBRARY_PATH /usr/local/cuda/extras/CUPTI/lib64:${LD_LIBRARY_PATH}
+RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1
+ENV LD_LIBRARY_PATH_ORG ${LD_LIBRARY_PATH}
+ENV LD_LIBRARY_PATH /usr/local/cuda/lib64/stubs:${LD_LIBRARY_PATH}
 
 ENV TF_NEED_CUDA 1
-ENV TF_CUDA_COMPUTE_CAPABILITIES=3.7,5.2
+ENV TF_CUDA_COMPUTE_CAPABILITIES=3.7,5.2,6.1
 ENV TF_NEED_GCP 0
 ENV TF_NEED_HDFS 0
 ENV TF_ENABLE_XLA 0
@@ -88,19 +90,24 @@ ENV TF_NEED_VERBS 0
 ENV TF_NEED_OPENCL 0
 ENV TF_NEED_JEMALLOC 1
 
-ENV TF_NEED_MKL 1
-ENV TF_DOWNLOAD_MKL 1
-ENV CC_OPT_FLAGS -DEIGEN_USE_VML -msse4.1 -mavx -mavx2 -mfma
+# Currently cannot use mkl with cuda
+ENV TF_NEED_MKL 0
+ENV TF_DOWNLOAD_MKL 0
+
+ENV CC_OPT_FLAGS -msse4.1 -mavx -mavx2 -mfma
 
 RUN cd /tensorflow \
  && yes "" | ./configure \
  && ./tensorflow/tools/ci_build/builds/print_build_info.sh \
  && copt_args=`echo ${CC_OPT_FLAGS} | sed -e s/-/--copt=-/g` \
- && bazel build -c opt ${copt_args} --config=cuda --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" \
+ && bazel build --action_env PATH="${PATH}" -c opt ${copt_args} \
+        --config=cuda --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" \
         tensorflow/tools/pip_package:build_pip_package \
  && bazel-bin/tensorflow/tools/pip_package/build_pip_package /tmp/pip \
  && pip install -q -U --no-cache-dir /tmp/pip/tensorflow-*.whl \
- && rm -rf /tmp/pip
+ && rm -rf /tmp/pip \
+ && rm -rf /root/.cache
 
+ENV LD_LIBRARY_PATH ${LD_LIBRARY_PATH_ORG}
 EXPOSE 6006
 WORKDIR /root

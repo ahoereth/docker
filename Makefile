@@ -1,20 +1,20 @@
 REPOSITORY ?= ahoereth/tensorflow
-IMAGES = intel-python intel-tensorflow intel-tensorflow-gpu latest
+IMAGES = intel-gpu intel latest
+TF_VERSION ?= master
 
 .default: ${IMAGES}
 
-intel-tensorflow: intel-python
-
-latest: intel-tensorflow
+latest: intel
 	docker tag ${REPOSITORY}:$< ${REPOSITORY}:$@
 
 .SECONDEXPANSION:
 %: Dockerfile.$$(subst -,.,%)
 	docker build . \
-		-t ${REPOSITORY}:$* \
+		--build-arg TF_VERSION=${TF_VERSION} \
+		-t ${REPOSITORY}:$(subst master,latest,${TF_VERSION})-$* \
 		-f Dockerfile.$(subst -,.,$*)
 
 push/%: %
-	docker push ${REPOSITORY}:$*
+	docker push ${REPOSITORY}:$(subst master,latest,${TF_VERSION})-$*
 
 push: $(addprefix push/,${IMAGES})

@@ -1,0 +1,99 @@
+FROM ubuntu:16.04
+
+### Dependencies
+RUN apt-get update -qqq --fix-missing \
+ && apt-get install -y -qqq --no-install-recommends \
+        apt-transport-https \
+        wget \
+        bzip2 \
+        ca-certificates \
+        libglib2.0-0 \
+        libxext6 \
+        libsm6 \
+        libxrender1 \
+        curl \
+        wget \
+        git \
+        g++ \
+        build-essential \
+        locate \
+        libcurl3-dev \
+        libfreetype6-dev \
+        libpng12-dev \
+        libzmq3-dev \
+        pkg-config \
+        rsync \
+        software-properties-common \
+        unzip \
+        zip \
+        zlib1g-dev \
+        openjdk-8-jdk \
+        openjdk-8-jre-headless \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
+
+
+### Conda
+RUN echo 'export PATH=/opt/conda/bin:$PATH' > /etc/profile.d/conda.sh \
+ && wget --quiet https://repo.continuum.io/miniconda/Miniconda3-4.3.14-Linux-x86_64.sh -O ~/miniconda.sh \
+ && /bin/bash ~/miniconda.sh -b -p /opt/conda \
+ && rm ~/miniconda.sh
+ENV PATH /opt/conda/bin:$PATH
+
+
+### Intelpython
+# Already includes stuff like jupyter, numpy etc.
+ENV ACCEPT_INTEL_PYTHON_EULA=yes
+RUN conda update -y -q conda \
+ && conda config --add channels intel \
+ && conda install -y -q intelpython3_full python=3
+
+
+### Jupyter Configuration
+# https://github.com/ipython/ipython/issues/7062
+COPY assets/jupyter_notebook_config.py /root/.jupyter/
+COPY assets/run_jupyter.sh /
+EXPOSE 8888
+
+
+### Bazel
+RUN echo "deb [arch=amd64] http://storage.googleapis.com/bazel-apt stable jdk1.8" | tee /etc/apt/sources.list.d/bazel.list \
+ && curl https://bazel.build/bazel-release.pub.gpg | apt-key add - \
+ && apt-get update -qq \
+ && apt-get install -y -qq --no-install-recommends bazel \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
+
+
+### Tensorflow
+ARG TF_VERSION=master
+RUN git clone https://github.com/tensorflow/tensorflow.git /tensorflow \
+ && git -C /tensorflow checkout ${TF_VERSION}
+
+ENV CI_BUILD_PYTHON python3
+ENV PYTHON_BIN_PATH /opt/conda/bin/python3
+ENV PYTHON_LIB_PATH /opt/conda/lib/python3.6/site-packages/
+
+ENV TF_NEED_CUDA 0
+ENV TF_NEED_GCP 0
+ENV TF_NEED_HDFS 0
+ENV TF_ENABLE_XLA 0
+ENV TF_NEED_VERBS 0
+ENV TF_NEED_OPENCL 0
+ENV TF_NEED_JEMALLOC 1
+
+ENV TF_NEED_MKL 1
+ENV CC_OPT_FLAGS -msse4.1 -mavx -mavx2 -mfma
+
+RUN cd /tensorflow \
+ && yes "" | ./configure \
+ && ./tensorflow/tools/ci_build/builds/print_build_info.sh \
+ && copt_args=`echo ${CC_OPT_FLAGS} | sed -e s/-/--copt=-/g` \
+ && bazel build --action_env PATH="${PATH}" -c opt ${copt_args} --config=mkl \
+        tensorflow/tools/pip_package:build_pip_package \
+ && bazel-bin/tensorflow/tools/pip_package/build_pip_package /tmp/pip \
+ && pip install -q -U --no-cache-dir /tmp/pip/tensorflow-*.whl \
+ && rm -rf /tmp/pip
+
+EXPOSE 6006
+WORKDIR /root
